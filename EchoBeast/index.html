@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Animal Sound Identification</title>
+
+    <!-- Bootstrap -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+
+    <!-- Teachable Machine Speech Commands -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
+
+    <style>
+      /* ================================
+       GENERAL
+    ================================= */
+
+      body {
+        font-family: "Poppins", sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+        background-attachment: fixed;
+        margin: 0;
+        color: #333;
+      }
+
+      /* ================================
+       MAIN CARD
+    ================================= */
+
+      .main-card {
+        background: rgba(255, 255, 255, 0.95);
+
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+
+        border: 1px solid rgba(255, 255, 255, 0.2);
+
+        max-width: 900px;
+        width: 100%;
+      }
+
+      /* ================================
+       TITLE
+    ================================= */
+
+      .text-gradient {
+        background: linear-gradient(to right, #764ba2, #667eea);
+
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      /* ================================
+       ANIMAL BADGES
+    ================================= */
+
+      .animal-name {
+        background: #f8f9fa;
+        color: #212529;
+
+        padding: 7px 11px;
+
+        border-radius: 8px;
+
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+
+        font-size: 0.85rem;
+      }
+
+      /* ================================
+       START BUTTON
+    ================================= */
+
+      .pulse-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+        border: none;
+
+        transition: all 0.3s ease;
+      }
+
+      .pulse-btn:hover {
+        transform: translateY(-2px);
+
+        box-shadow: 0 10px 20px rgba(118, 75, 162, 0.4) !important;
+      }
+
+      .pulse-btn:active {
+        transform: translateY(1px);
+      }
+
+      /* Button while listening */
+
+      .pulse-btn.listening {
+        animation: buttonPulse 1.2s infinite;
+      }
+
+      @keyframes buttonPulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.04);
+        }
+      }
+
+      /* ================================
+       STATUS
+    ================================= */
+
+      .status-text {
+        min-height: 24px;
+
+        color: #6c757d;
+
+        font-size: 0.95rem;
+      }
+
+      /* ================================
+       RESULTS
+    ================================= */
+
+      .results-box {
+        max-width: 450px;
+
+        border: 1px solid rgba(0, 0, 0, 0.05);
+      }
+
+      /* ================================
+       ANIMAL CIRCLES
+    ================================= */
+
+      .animal-card {
+        width: 130px;
+        height: 130px;
+
+        border-radius: 50%;
+
+        border: 4px solid white;
+
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+
+        display: flex;
+
+        justify-content: center;
+        align-items: center;
+
+        cursor: pointer;
+
+        user-select: none;
+
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+      }
+
+      .animal-card span {
+        font-size: 1.05rem;
+
+        font-weight: 700;
+
+        color: #495057;
+
+        transition: all 0.3s ease;
+      }
+
+      /* Hover */
+
+      .animal-card:hover {
+        transform: scale(1.08);
+
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+
+        border-color: #667eea;
+      }
+
+      /* ================================
+       100% DETECTED ANIMAL
+    ================================= */
+
+      .animal-card.active {
+        border-color: #28a745;
+
+        box-shadow: 0 0 25px rgba(40, 167, 69, 0.55);
+
+        animation: animalPulse 0.9s infinite;
+      }
+
+      .animal-card.active span {
+        color: #198754;
+
+        text-shadow: 0 0 12px rgba(25, 135, 84, 0.45);
+      }
+
+      /* Pulsing animation */
+
+      @keyframes animalPulse {
+        0%,
+        100% {
+          transform: scale(1.08);
+        }
+
+        50% {
+          transform: scale(1.18);
+        }
+      }
+
+      /* ================================
+       MOBILE
+    ================================= */
+
+      @media (max-width: 576px) {
+        .main-card {
+          padding: 1.5rem !important;
+        }
+
+        .animal-card {
+          width: 100px;
+          height: 100px;
+        }
+
+        .animal-card span {
+          font-size: 0.9rem;
+        }
+
+        h1 {
+          font-size: 1.8rem;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- ================================
+       APP
+  ================================= -->
+
+    <div
+      class="app-container d-flex flex-column min-vh-100 justify-content-center align-items-center py-5"
+    >
+      <!-- ================================
+         MAIN CARD
+    ================================= -->
+
+      <div class="main-card text-center p-4 p-md-5 mx-3 shadow-lg rounded-4">
+        <!-- HEADER -->
+
+        <header class="mb-4">
+          <h1 class="fw-bold text-gradient mb-3">
+            AI-Powered Animal Sound Identification
+          </h1>
+
+          <p class="text-muted mb-0">Make an animal sound and test the model</p>
+
+          <!-- Animal list -->
+
+          <div class="mt-2 d-flex justify-content-center gap-2 flex-wrap">
+            <span class="badge animal-name"> Dog </span>
+
+            <span class="badge animal-name"> Cat </span>
+
+            <span class="badge animal-name"> Lion </span>
+
+            <span class="badge animal-name"> Tiger </span>
+
+            <span class="badge animal-name"> Elephant </span>
+
+            <span class="badge animal-name"> Gorilla </span>
+
+            <span class="badge animal-name"> Eagle </span>
+          </div>
+        </header>
+
+        <!-- ================================
+           START BUTTON
+      ================================= -->
+
+        <button
+          id="startButton"
+          class="btn btn-primary btn-lg rounded-pill px-4 py-3 shadow pulse-btn mb-4 fw-bold"
+          onclick="startClassification()"
+        >
+          Start Listening...
+        </button>
+
+        <!-- STATUS -->
+
+        <div id="status" class="status-text mb-3">Ready to listen</div>
+
+        <!-- ================================
+           RESULTS
+      ================================= -->
+
+        <div
+          class="results-box bg-white bg-opacity-75 rounded-4 p-4 mb-5 mx-auto shadow-sm"
+        >
+          <h4 class="mb-2 text-secondary">
+            Animal Name:
+
+            <span id="result-label" class="text-dark fw-bold"> - </span>
+          </h4>
+
+          <h5 class="mb-0 text-secondary">
+            Sound Similarity:
+
+            <span id="result-confidence" class="text-primary fw-bold"> - </span>
+          </h5>
+        </div>
+
+        <!-- ================================
+           ANIMAL GALLERY
+      ================================= -->
+
+        <div
+          class="animal-gallery d-flex flex-wrap justify-content-center gap-3 gap-md-4"
+        >
+          <div class="animal-card" data-animal="dog">
+            <span>Dog</span>
+          </div>
+
+          <div class="animal-card" data-animal="cat">
+            <span>Cat</span>
+          </div>
+
+          <div class="animal-card" data-animal="lion">
+            <span>Lion</span>
+          </div>
+
+          <div class="animal-card" data-animal="tiger">
+            <span>Tiger</span>
+          </div>
+
+          <div class="animal-card" data-animal="elephant">
+            <span>Elephant</span>
+          </div>
+
+          <div class="animal-card" data-animal="gorilla">
+            <span>Gorilla</span>
+          </div>
+
+          <div class="animal-card" data-animal="eagle">
+            <span>Eagle</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+
+      <footer class="mt-auto pt-4 text-white opacity-75">
+        <small> Developed By - Dreamers Academy </small>
+      </footer>
+    </div>
+
+    <!-- ================================
+       JAVASCRIPT
+  ================================= -->
+
+    <script>
+      /*
+    ============================================================
+    TEACHABLE MACHINE MODEL
+    ============================================================
+    */
+
+      const MODEL_URL =
+        "https://teachablemachine.withgoogle.com/models/kz3svk-WJ/model.json";
+
+      const METADATA_URL =
+        "https://teachablemachine.withgoogle.com/models/kz3svk-WJ/metadata.json";
+
+      let recognizer = null;
+
+      let isListening = false;
+
+      /*
+    ============================================================
+    START CLASSIFICATION
+    ============================================================
+    */
+
+      async function startClassification() {
+        const button = document.getElementById("startButton");
+
+        const status = document.getElementById("status");
+
+        try {
+          button.disabled = true;
+
+          button.classList.add("listening");
+
+          button.innerHTML = "Loading Model...";
+
+          status.innerHTML = "Loading your animal sound model...";
+
+          /*
+        Create Teachable Machine
+        audio recognizer.
+        */
+
+          recognizer = speechCommands.create(
+            "BROWSER_FFT",
+            undefined,
+            MODEL_URL,
+            METADATA_URL,
+          );
+
+          /*
+        Load model.
+        */
+
+          await recognizer.ensureModelLoaded();
+
+          /*
+        Get labels from model.
+        */
+
+          const labels = recognizer.wordLabels();
+
+          console.log("Model labels:", labels);
+
+          status.innerHTML = "Listening for an animal sound...";
+
+          button.innerHTML = "Listening...";
+
+          isListening = true;
+
+          /*
+        Start listening.
+        */
+
+          await recognizer.listen(
+            (result) => {
+              processResults(result, labels);
+            },
+
+            {
+              includeSpectrogram: false,
+
+              probabilityThreshold: 0.1,
+
+              invokeCallbackOnNoiseAndUnknown: true,
+            },
+          );
+        } catch (error) {
+          console.error("Model error:", error);
+
+          button.disabled = false;
+
+          button.classList.remove("listening");
+
+          button.innerHTML = "Start Listening...";
+
+          status.innerHTML =
+            "Could not load the model. Check the model URL and microphone permission.";
+        }
+      }
+
+      /*
+    ============================================================
+    PROCESS RESULTS
+    ============================================================
+    */
+
+      function processResults(result, labels) {
+        if (!result || !result.scores) {
+          return;
+        }
+
+        /*
+      Find highest confidence.
+      */
+
+        let highestIndex = 0;
+
+        for (let i = 1; i < result.scores.length; i++) {
+          if (result.scores[i] > result.scores[highestIndex]) {
+            highestIndex = i;
+          }
+        }
+
+        const animalName = labels[highestIndex];
+
+        const confidence = result.scores[highestIndex];
+
+        const accuracy = (confidence * 100).toFixed(2);
+
+        /*
+      Show result.
+      */
+
+        document.getElementById("result-label").innerHTML = animalName;
+
+        document.getElementById("result-confidence").innerHTML = accuracy + "%";
+
+        /*
+      ============================================
+      IMPORTANT:
+      Only pulse when confidence is EXACTLY
+      100.00%.
+      ============================================
+      */
+
+        if (accuracy >= "0.999") {
+          highlightAnimal(animalName);
+        } else {
+          removeAnimalHighlight();
+        }
+      }
+
+      /*
+    ============================================================
+    HIGHLIGHT ANIMAL
+    ============================================================
+    */
+
+      function highlightAnimal(label) {
+        /*
+      Remove active state
+      from all animals first.
+      */
+
+        document.querySelectorAll(".animal-card").forEach((card) => {
+          card.classList.remove("active");
+        });
+
+        /*
+      Normalize model label.
+      */
+
+        const normalizedLabel = label
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]/g, "");
+
+        /*
+      Find matching animal.
+      */
+
+        document.querySelectorAll(".animal-card").forEach((card) => {
+          const animal = card.dataset.animal
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "");
+
+          if (animal === normalizedLabel) {
+            card.classList.add("active");
+          }
+        });
+      }
+
+      /*
+    ============================================================
+    REMOVE HIGHLIGHT
+    ============================================================
+    */
+
+      function removeAnimalHighlight() {
+        document.querySelectorAll(".animal-card").forEach((card) => {
+          card.classList.remove("active");
+        });
+      }
+    </script>
+  </body>
+</html>
